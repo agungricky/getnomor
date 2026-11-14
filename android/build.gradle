@@ -1,0 +1,14 @@
+plugins {
+    // Plugin versions are declared in settings.gradle for the modern Flutter plugin loader.
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
+}
