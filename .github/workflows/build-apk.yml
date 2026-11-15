@@ -33,18 +33,41 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Generate missing Gradle wrapper
+      - name: Rebuild Android project
         shell: bash
         run: |
-          flutter create --platforms=android --project-name wa_contact_collector /tmp/wa_scaffold
-          cp /tmp/wa_scaffold/android/gradlew android/gradlew
-          cp /tmp/wa_scaffold/android/gradlew.bat android/gradlew.bat
-          mkdir -p android/gradle/wrapper
-          cp /tmp/wa_scaffold/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
-          chmod +x android/gradlew
+          set -euo pipefail
+
+          echo "Backup Android lama"
+          mv android "$RUNNER_TEMP/android_legacy"
+
+          echo "Generate Android dari Flutter stable"
+          flutter create \
+            --platforms=android \
+            --project-name wa_contact_collector \
+            --org com.getnomor \
+            .
+
+          echo "Restore kode Kotlin custom"
+          KOTLIN_PATH="app/src/main/kotlin/com/getnomor/wa_contact_collector"
+
+          mkdir -p "android/$KOTLIN_PATH"
+
+          cp -a \
+            "$RUNNER_TEMP/android_legacy/$KOTLIN_PATH/." \
+            "android/$KOTLIN_PATH/"
+
+          echo "Restore AndroidManifest"
+          cp \
+            "$RUNNER_TEMP/android_legacy/app/src/main/AndroidManifest.xml" \
+            android/app/src/main/AndroidManifest.xml
+
+          echo "Periksa hasil scaffold"
+          ls -la android
+          ls -la "android/$KOTLIN_PATH"
+
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Flutter analyze
         run: flutter analyze --no-fatal-infos
