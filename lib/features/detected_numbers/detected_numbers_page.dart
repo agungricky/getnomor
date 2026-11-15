@@ -152,8 +152,11 @@ class _DetectedNumbersPageState extends State<DetectedNumbersPage> {
         ],
       ),
     );
-    for (final controller in controllers.values) controller.dispose();
-    return result;
+    for (final controller in controllers.values) {
+  controller.dispose();
+}
+
+return result;
   }
 }
 
