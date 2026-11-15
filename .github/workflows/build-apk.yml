@@ -8,7 +8,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -16,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download source dari GitHub
+      # 1. Download source repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup Java
+      # 2. Setup Java 17
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -33,12 +37,11 @@ jobs:
         with:
           channel: stable
 
-      # 4. Informasi Flutter
+      # 4. Check Flutter version
       - name: Check Flutter version
         run: flutter --version
 
-      # 5. Backup konfigurasi Android lama
-      #    dan buat ulang struktur Android resmi
+      # 5. Generate struktur Android resmi
       - name: Regenerate Android project
         shell: bash
         run: |
@@ -53,7 +56,7 @@ jobs:
           fi
 
           echo "=================================="
-          echo "GENERATE ANDROID BARU"
+          echo "GENERATE ANDROID FLUTTER BARU"
           echo "=================================="
 
           flutter create \
@@ -89,28 +92,23 @@ jobs:
           fi
 
           echo "=================================="
-          echo "VERIFIKASI ANDROID"
+          echo "VERIFY ANDROID PROJECT"
           echo "=================================="
 
           ls -la android
           ls -la android/app
 
-          echo "Android project generated."
-
-      # 6. Install dependency Flutter
+      # 6. Install dependencies
       - name: Flutter pub get
         run: flutter pub get
 
-      # 7. Hapus test bawaan yang tidak cocok
-      #    dengan source aplikasi getnomor
+      # 7. Remove incompatible default widget test
       - name: Remove incompatible widget test
         shell: bash
         run: |
           rm -f test/widget_test.dart
-          echo "Incompatible widget test removed."
 
-      # 8. Analisis source Flutter
-      #    Info deprecation tidak menggagalkan build
+      # 8. Analyze Flutter source
       - name: Flutter analyze
         run: flutter analyze --no-fatal-infos
 
@@ -118,28 +116,67 @@ jobs:
       - name: Build APK debug
         run: flutter build apk --debug
 
-      # 10. Verifikasi APK
-      - name: Verify APK
+      # 10. Verify and rename APK
+      - name: Prepare APK
         shell: bash
         run: |
-          APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
+          set -euo pipefail
 
-          if [ ! -f "$APK_PATH" ]; then
-            echo "ERROR: APK tidak ditemukan!"
+          APK_SOURCE="build/app/outputs/flutter-apk/app-debug.apk"
+          APK_RELEASE="WA-Contact-Collector.apk"
+
+          if [ ! -f "$APK_SOURCE" ]; then
+            echo "ERROR: APK tidak ditemukan"
             exit 1
           fi
+
+          cp "$APK_SOURCE" "$APK_RELEASE"
 
           echo "=================================="
           echo "APK BERHASIL DIBUAT"
           echo "=================================="
 
-          ls -lh "$APK_PATH"
+          ls -lh "$APK_RELEASE"
 
-      # 11. Upload APK
+      # 11. Upload artifact sebagai cadangan
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: wa-contact-collector-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: WA-Contact-Collector.apk
           if-no-files-found: error
           retention-days: 7
+
+      # 12. Publish APK ke GitHub Releases
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: WA Contact Collector Build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            WA Contact Collector - Android APK
+
+            Build: ${{ github.run_number }}
+            Commit: ${{ github.sha }}
+
+            Fitur aplikasi:
+            - Deteksi nomor dari notifikasi WhatsApp
+            - Mendukung WhatsApp Business
+            - Daftar nomor yang terdeteksi
+            - Simpan nomor ke kontak Android
+            - Pencegahan duplikasi nomor
+            - Penyimpanan riwayat lokal
+
+            CATATAN:
+            Ini adalah APK debug untuk pengujian.
+            Deteksi hanya bekerja pada notifikasi yang
+            menampilkan nomor telepon dan diizinkan Android.
+
+            Download file WA-Contact-Collector.apk
+            melalui bagian Assets di bawah.
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: WA-Contact-Collector.apk
+          fail_on_unmatched_files: true
